@@ -25,15 +25,23 @@ class MerkleTree {
 
 	public createTree(dataList: any[]) {
 		const hashDataList: string[] = dataList.map((data) => hash(data));
-		const leafNodes: LeafNode[] = hashDataList.map<LeafNode>((hash, index) => ({
-			hash,
-			isRoot: hashDataList.length == 2,
-		}));
+		const leafNodes: LeafNode[] = hashDataList.map<LeafNode>((hash, index) => {
+			const leafNode = {
+				hash,
+				isRoot: hashDataList.length == 2,
+			};
+			return leafNode;
+		});
 		this.nodes = leafNodes;
 		this._processLeaf(leafNodes);
 	}
 
-	public verify(leaf: any, proofs: LeafNode[]) {}
+	public verify(leafHash: any, proofs: LeafNode[]): boolean {
+		return (
+			this._processProof(leafHash, proofs) ===
+			this.nodes.find((node) => node.isRoot)?.hash
+		);
+	}
 
 	public getProofs(leafHash: string, proofs: LeafNode[]): LeafNode[] {
 		if (this.nodes.length == 0)
@@ -48,6 +56,22 @@ class MerkleTree {
 		if (proof === undefined) return proofs;
 		proofs.push(proof);
 		return this.getProofs(foundLeaf.hash, proofs);
+	}
+
+	private _processProof(leafHash: string, proofs: LeafNode[]): string {
+		if (proofs.length === 0) return leafHash;
+		let computedHash = leafHash;
+		for (let proof of proofs) {
+			const foundLeaf: LeafNode | undefined = this.nodes.find(
+				(node) =>
+					(node.left?.hash === computedHash &&
+						node.right?.hash === proof.hash) ||
+					(node.right?.hash === computedHash && node.left?.hash === proof.hash)
+			);
+			if (foundLeaf === undefined) throw new Error("Leaf is not found");
+			computedHash = foundLeaf.hash;
+		}
+		return computedHash;
 	}
 
 	private _processLeaf(nodes: LeafNode[]) {
@@ -82,10 +106,9 @@ function main() {
 	const merkleTree: MerkleTree = new MerkleTree();
 
 	merkleTree.createTree(dataList);
-	//console.log(merkleTree.nodes.reverse());
-	const proofs = merkleTree.getProofs(hash(5), []);
-	console.log(proofs);
-	merkleTree.verify(5, []);
+	const hashValue = hash(1);
+	const proofs = merkleTree.getProofs(hashValue, []);
+	console.log(merkleTree.verify(hashValue, proofs));
 }
 
 main();
