@@ -8,56 +8,84 @@ interface LeafNode {
 	hash: string;
 	left?: LeafNode;
 	right?: LeafNode;
-	level: number;
 	isRoot: boolean;
 }
 
 class MerkleTree {
 	nodes: LeafNode[];
+	treeDepth: number;
 	constructor() {
 		this.nodes = [];
+		this.treeDepth = 0;
+	}
+
+	public getTreeDepth(lengthOfNodes: number) {
+		return Math.ceil(Math.log2(lengthOfNodes));
 	}
 
 	public createTree(dataList: any[]) {
 		const hashDataList: string[] = dataList.map((data) => hash(data));
-		const level = parseInt(`${dataList.length / 2}`) + (dataList.length % 2);
-		const leafNodes: LeafNode[] = hashDataList.map<LeafNode>((hash) => ({
+		const leafNodes: LeafNode[] = hashDataList.map<LeafNode>((hash, index) => ({
 			hash,
-			level,
 			isRoot: hashDataList.length == 2,
 		}));
 		this.nodes = leafNodes;
 		this._processLeaf(leafNodes);
 	}
 
+	public verify(leaf: any, proofs: LeafNode[]) {}
+
+	public getProofs(leafHash: string, proofs: LeafNode[]): LeafNode[] {
+		if (this.nodes.length == 0)
+			throw new Error("Merkle Tree is not constructed");
+
+		const foundLeaf: LeafNode | undefined = this.nodes.find(
+			(node) => node.left?.hash === leafHash || node.right?.hash === leafHash
+		);
+		if (foundLeaf === undefined) return proofs;
+		const proof =
+			foundLeaf?.left?.hash === leafHash ? foundLeaf?.right : foundLeaf?.left;
+		if (proof === undefined) return proofs;
+		proofs.push(proof);
+		return this.getProofs(foundLeaf.hash, proofs);
+	}
+
 	private _processLeaf(nodes: LeafNode[]) {
+		if (nodes.length <= 1) return;
 		let tempNodes: LeafNode[] = [];
+		let curNodes: LeafNode[] = [];
 		for (let index = 0; index < nodes.length; index++) {
-			if ((index + 1) % 2 == 0) {
+			if (index % 2 == 0) {
 				const leaf1 = nodes[index];
 				const leaf2 = nodes[index + 1];
-
-				const computedHash: string =
-					leaf2 == undefined ? hash(leaf1) : hash(leaf1.hash + leaf2.hash);
-				tempNodes.push({
-					hash: computedHash,
-					left: this.nodes[index],
-					right: this.nodes[index + 1],
-					level: nodes[index].level - 1,
-					isRoot: nodes.length == 2,
-				});
+				if (leaf2 == undefined) tempNodes.push(leaf1);
+				else {
+					const computedHash: string = hash(leaf1.hash + leaf2.hash);
+					const leafNode = {
+						hash: computedHash,
+						left: nodes[index],
+						right: nodes[index + 1],
+						isRoot: nodes.length == 2,
+					};
+					curNodes.push(leafNode);
+				}
 			}
 		}
-		this.nodes.push(...tempNodes);
+
+		this.nodes.push(...curNodes);
+		this._processLeaf(curNodes.concat(tempNodes));
 	}
 }
 
 function main() {
-	const dataList = [1, 5, 4, 8, 19, 32, 13, 10];
+	const dataList = [1, 5, 4, 8, 19, 32, 13, 50, 12, 11];
 	const merkleTree: MerkleTree = new MerkleTree();
 
 	merkleTree.createTree(dataList);
-	console.log(merkleTree.nodes);
+	//console.log(merkleTree.nodes.reverse());
+	const proofs = merkleTree.getProofs(hash(5), []);
+	console.log(proofs);
+	merkleTree.verify(5, []);
 }
 
 main();
